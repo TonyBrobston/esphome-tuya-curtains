@@ -1,54 +1,30 @@
 esphome:
   name: ${name}
   friendly_name: ${friendly_name}
-  comment: "Zemismart ZM-CL02 curtain motor, converted from Tasmota"
+  comment: "Zemismart ZM-CL02 curtain motor"
 
 esp8266:
-  # Chip reports 2MB flash (FlashChipId 1540C8), but esp01_1m (1MB board
-  # profile) is the well-tested convention for this exact WB2S-style
-  # Tuya curtain module family - it only under-uses the chip, it doesn't
-  # risk anything, so we deliberately don't chase an exact 2MB board id.
   board: esp01_1m
 
 logger:
 
 api:
   encryption:
-    # Must match whatever key the device is already running (the dashboard's
-    # onboarding wizard generates one when you adopt the base-ESPHome flash)
-    # - don't invent a new random one, or the running device and this config
-    # will disagree and the API connection will fail. Pull the real value
-    # from the device's current config (dashboard -> device -> Edit, or the
-    # /json-config API) the first time you wire a curtain's secrets up.
     key: ${api_key}
 
 ota:
   - platform: esphome
 
 wifi:
-  # !secret only resolves against the local secrets.yaml for files loaded
-  # directly by the dashboard, not for this file once it's fetched remotely
-  # via packages: - so these come in as substitutions instead, resolved by
-  # each per-curtain file's own !secret wifi_ssid / !secret wifi_password.
   ssid: ${wifi_ssid}
   password: ${wifi_password}
 
-  # Fall back to AP mode if wifi fails, so a bad flash is still recoverable.
   ap:
     ssid: ${ap_ssid}
-    # Unlike api_key, this is a new password (the prior config's fallback AP
-    # had none) - any secure value works, it doesn't need to match anything
-    # already running on the device.
     password: ${ap_password}
 
 captive_portal:
 
-# --- Tuya MCU link -----------------------------------------------------
-# From the Tasmota template {"GPIO":[...,108(idx9),...,107(idx11),...]}:
-#   idx 9  -> GPIO13 -> Tasmota code 108 "Tuya Rx"  -> ESP RX
-#   idx 11 -> GPIO15 -> Tasmota code 107 "Tuya Tx"  -> ESP TX
-# These are the swapped-UART pins Tasmota used to talk to the Tuya MCU;
-# GPIO1/GPIO3 remain free and are the normal pins used for serial flashing.
 uart:
   id: tuya_uart
   tx_pin: GPIO15
@@ -60,42 +36,15 @@ tuya:
 
 cover:
   - platform: tuya
-    # Empty name marks this as the device's "main" entity, so Home
-    # Assistant uses the device name alone for the entity_id
-    # (cover.<name>) instead of concatenating the entity's own name onto
-    # it (which would double up since this entity's name would otherwise
-    # match the device's friendly_name).
     name: ""
     device_class: curtain
     position_datapoint: 101
     min_value: 0
     max_value: 100
     restore_mode: RESTORE
-    # Deliberately NOT setting control_datapoint (dp102 on this device).
-    # This device's dp102 enum is CLOSE=0/OPEN=1/STOP=2, but ESPHome's tuya
-    # cover hardcodes OPEN=0/STOP=1/CLOSE=2 for control_datapoint - using it
-    # as-is would send inverted open/close/stop commands. Omitting it makes
-    # ESPHome drive open/close purely via position_datapoint (0/100), and
-    # "stop" by re-sending the current position.
-    #
-    # dp101 polarity (0=open, 100=closed, linear) confirmed live on physical
-    # units by sending raw datapoint writes directly (bypassing Tasmota's
-    # `Dimmer` command and its clamping) and visually observing the result:
-    # raw 0 -> fully open, raw 100 -> fully closed. This matches ESPHome's
-    # default (non-inverted) position math, so no invert_position_report is
-    # needed.
-    #
-    # These motors self-calibrate their endstops on the first move in each
-    # direction after power-on, so a position reading taken before both
-    # directions have been freshly exercised in the current power cycle
-    # can't be trusted.
 
 switch:
   - platform: tuya
-    # dp103: confirmed as this device's motor direction control. Only the
-    # unit(s) physically mounted/wired in the reversed orientation need
-    # this flipped from the fleet default - set direction_restore per
-    # curtain via substitutions rather than editing this shared file.
     name: "Curtain Direction"
     switch_datapoint: 103
     restore_mode: ${direction_restore}
