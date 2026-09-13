@@ -14,18 +14,31 @@ logger:
 
 api:
   encryption:
+    # Must match whatever key the device is already running (the dashboard's
+    # onboarding wizard generates one when you adopt the base-ESPHome flash)
+    # - don't invent a new random one, or the running device and this config
+    # will disagree and the API connection will fail. Pull the real value
+    # from the device's current config (dashboard -> device -> Edit, or the
+    # /json-config API) the first time you wire a curtain's secrets up.
     key: ${api_key}
 
 ota:
   - platform: esphome
 
 wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
+  # !secret only resolves against the local secrets.yaml for files loaded
+  # directly by the dashboard, not for this file once it's fetched remotely
+  # via packages: - so these come in as substitutions instead, resolved by
+  # each per-curtain file's own !secret wifi_ssid / !secret wifi_password.
+  ssid: ${wifi_ssid}
+  password: ${wifi_password}
 
   # Fall back to AP mode if wifi fails, so a bad flash is still recoverable.
   ap:
     ssid: ${ap_ssid}
+    # Unlike api_key, this is a new password (the prior config's fallback AP
+    # had none) - any secure value works, it doesn't need to match anything
+    # already running on the device.
     password: ${ap_password}
 
 captive_portal:
