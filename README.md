@@ -4,6 +4,31 @@ ESPHome configs for a fleet of Zemismart ZM-CL02 Tuya-MCU curtain motors (ESP826
 
 `common-curtain.yaml` holds the shared base config, pulled into each curtain's top-level `.yaml` file via ESPHome's `packages:`. Each curtain file supplies its own `substitutions:` (name, friendly name, wifi/api/AP secrets, `direction_restore`) and nothing else.
 
+## Per-curtain config
+
+Each curtain gets its own top-level file in the ESPHome dashboard (not committed to this repo, since it's specific to one physical device). It's just a `substitutions:` block plus a `packages:` pointer at this repo:
+
+```yaml
+substitutions:
+  name: example-curtain
+  friendly_name: "Example Curtain"
+  wifi_ssid: !secret wifi_ssid
+  wifi_password: !secret wifi_password
+  api_key: !secret example_curtain_api_key
+  ap_ssid: "Example Curtain Fallback"
+  ap_password: !secret example_curtain_ap_password
+  direction_restore: ALWAYS_OFF
+
+packages:
+  curtain_base:
+    url: https://github.com/TonyBrobston/esphome-tuya-curtains
+    files: [common-curtain.yaml]
+    ref: main
+    refresh: 1d
+```
+
+`direction_restore` is `ALWAYS_OFF` for every curtain except the one(s) physically mounted/wired in reverse, which need `ALWAYS_ON` (see dp103 below).
+
 ## Secrets
 
 Each curtain's `substitutions:` block names the secrets it needs via `!secret`. Add these to the `secrets.yaml` the ESPHome dashboard already uses (it's gitignored here and lives only in the dashboard's own secret management):
@@ -24,7 +49,7 @@ Confirmed live against physical units, not just inferred from documentation:
 - **dp102** (`control_datapoint`): deliberately left unmapped. This device's dp102 enum is CLOSE=0/OPEN=1/STOP=2, but ESPHome's `tuya` cover hardcodes OPEN=0/STOP=1/CLOSE=2 for `control_datapoint` — using it as-is would send inverted open/close/stop commands. Omitting it drives everything through `position_datapoint` instead, and "stop" works via ESPHome's built-in fallback of re-sending the current position (confirmed live to actually halt the motor mid-travel).
 - **dp103** (`switch_datapoint`): confirmed as motor direction control, exposed as the internal "Curtain Direction" switch. `direction_restore` is `ALWAYS_OFF` (the fleet default/"regular" orientation) for every curtain except the one(s) physically mounted/wired in reverse, which need `ALWAYS_ON`.
 - **Self-calibration**: these motors self-calibrate their endstops on the first move in each direction after power-on, so a position reading taken before both directions have been freshly exercised in the current power cycle can't be trusted.
-- **Entity naming**: the cover's `name: ""` (empty) marks it as the device's "main" entity, so Home Assistant uses the device name alone for the entity_id (e.g. `cover.master_bedroom_curtains`) instead of concatenating the entity's own name onto it.
+- **Entity naming**: the cover's `name: ""` (empty) marks it as the device's "main" entity, so Home Assistant uses the device name alone for the entity_id (e.g. `cover.example_curtain`) instead of concatenating the entity's own name onto it.
 
 ## Removable WiFi dongle
 
